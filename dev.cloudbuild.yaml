@@ -1,0 +1,50 @@
+# In this directory, run the following command to build this builder.
+# $ gcloud config set project vamp-cast-staging
+# $ gcloud builds submit . --config=dev.cloudbuild.yaml
+#
+# Artifact registry image path for each regions for staging are
+# US: gcr.io/* -> us-docker.pkg.dev/vamp-cast-staging/gcr.io/* OR us.gcr.io/* -> us-docker.pkg.dev/vamp-cast-staging/us.gcr.io/*
+# EU: eu.gcr.io/* -> europe-docker.pkg.dev/vamp-cast-staging/eu.gcr.io/*
+# Asia: asia.gcr.io/* -> asia-docker.pkg.dev/vamp-cast-staging/asia.gcr.io/*
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: metrics_build_process
+    entrypoint: docker
+    args: [
+            'build',
+            '-t','europe-docker.pkg.dev/vamp-cast-staging/eu.gcr.io/vamp-analytics/cast_3_fn_test:${BUILD_ID}',
+            '-f','Dockerfile',
+            '.'
+          ]
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: metrics_push_container_process
+    args: ['push', 'europe-docker.pkg.dev/vamp-cast-staging/eu.gcr.io/vamp-analytics/cast_3_fn_test:${BUILD_ID}']
+    waitFor:
+      - metrics_build_process
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: metrics_cloud_run_deploy_process
+    entrypoint: gcloud
+    args: [
+      'run', 'deploy',
+      'cast_3_fn_test', '--image', 'europe-docker.pkg.dev/vamp-cast-staging/eu.gcr.io/vamp-analytics/cast_3_fn_test:${BUILD_ID}',
+      '--cpu', '1000m',
+      '--memory', '2Gi',
+      '--region', 'europe-west1',
+      '--platform', 'managed',
+      '--allow-unauthenticated',
+      '--set-secrets', 'TIKTOK_TCM_ACCESS_TOKEN=TIKTOK_TCM_ACCESS_TOKEN:latest,TIKTOK_TCM_ACCOUNT_ID=TIKTOK_TCM_ACCOUNT_ID:latest,TIKTOK_CLIENT_ID=TIKTOK_CLIENT_ID:latest,TIKTOK_CLIENT_SECRET=TIKTOK_CLIENT_SECRET:latest,YOUTUBE_DATA_API_KEY=YOUTUBE_DATA_API_KEY:latest',
+      ]
+    waitFor:
+      - metrics_push_container_process
+
+
+timeout: 1800s
+images: [
+  'europe-docker.pkg.dev/vamp-cast-staging/eu.gcr.io/vamp-analytics/cast_3_fn_test:${BUILD_ID}',
+]
+
+options:
+  logging: CLOUD_LOGGING_ONLY
