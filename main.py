@@ -5,9 +5,14 @@ from multiprocessing.dummy import Pool as ThreadPool
 
 import flask
 import functions_framework
+import google.cloud.logging
 import pandas as pd
 
-from functions import embed_threading, fetch_from_bigquery
+from functions import embed_threading, fetch_from_bigquery, setup_logging
+
+client = google.cloud.logging.Client()
+client.setup_logging()
+setup_logging()
 
 query = """
 SELECT

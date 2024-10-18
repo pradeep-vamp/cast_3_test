@@ -24,6 +24,14 @@ vertexai.init(location="europe-west1")
 model = MultiModalEmbeddingModel.from_pretrained("multimodalembedding")
 
 
+def setup_logging():
+    """
+    Setup logging
+    """
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+
 def write_df_to_bq(table_name=None, df=pd.DataFrame, chunk_size=None):
     """
     Executes sql query provided
@@ -230,7 +238,11 @@ def retrieve_post_information(social_platform, handle=None, social_id=None, soci
     except Exception as e:
         data = pd.DataFrame(columns=['caption', 'thumbnail'])
         logging.error(e)
+
+    logging.info(f"From: {data['caption']}")
     data['caption'] = data['caption'].str.slice(0, 1000)
+    logging.info(f"To: {data['caption']}")
+
     return data
 
 
@@ -247,7 +259,7 @@ def generate_embeddings(thumbnail_url, caption, model=MultiModalEmbeddingModel.f
 
 def retrieve_and_embed(social_platform, handle=None, social_id=None, social_token=None):
     """
-    Retrieve and embed data for a given social platform
+    Retrieve and embed data for a handle for the given social platform
     """
     logging.info(
         f"Retrieving and embedding data for social platform: {social_platform}")
@@ -269,6 +281,9 @@ def retrieve_and_embed(social_platform, handle=None, social_id=None, social_toke
     post_info['caption_vector'] = pd.Series(
         [x['caption_embedding'] for x in post_info['embeddings']])
 
+    post_info = post_info.loc[(post_info['image_vector'].isna() == False) & (
+        post_info['caption_vector'].isna() == False)].reset_index(drop=True)
+
     post_info = post_info.loc[post_info['embeddings'].isna() == False]
     creators = post_info.loc[:, [
         'social_platform', 'handle']].drop_duplicates()
@@ -289,10 +304,10 @@ def retrieve_and_embed(social_platform, handle=None, social_id=None, social_toke
             post_info['creator_vector'][index] = creator_vector.tolist()
 
         except Exception as e:
-            logging.info(creators)
             logging.error(e)
 
     creators = creators.loc[creators['creator_vector'].isna() == False]
+    logging.info(creators.head())
     post_info = post_info.drop(
         columns=['image_vector', 'caption_vector', 'embeddings'])
     logging.info(post_info.head())
@@ -306,7 +321,7 @@ def retrieve_and_embed(social_platform, handle=None, social_id=None, social_toke
 
 def embed_threading(item):
     """
-    Embed data for a given item
+    Embed data for a given user handle and social platform
     """
     logging.info(f"Embedding data for item: {item}")
     social_platform = item.get('social_platform')
